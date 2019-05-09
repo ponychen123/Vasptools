@@ -1,4 +1,5 @@
 #!perl
+#remove the check_d function, add opt_d function, this is a rather easy way to optimize the initial path based on hard sphere model ponychen 20190509
 #add a sortatoms function ,sort the atoms if the atoms oder changes . but not works for stacking faults!!! ponychen 20190502.
 #i like model systems in MS but it's awful to make neb path by using nebmake.pl under linux. sometimes you need further modulate the path.thus i
 #wrote this script to create neb path in the MS. make life better.....
@@ -14,37 +15,70 @@ use MaterialsScript qw(:all);
 
 #chage following values
 my $inifile = "00"; #your initial xsd filename
-my $finfile = "08"; #your final xsd filename
+my $finfile = "06"; #your final xsd filename
 my $images_num = 5; #how much images would you create
-my $dmin = 2.0;       #belowe which the atoms are thought to be close, unit angstrom
-my $sort = "False"; # if True, sored the final structure by the initial structure
+my $dmin = 2.3;       #belowe which the atoms are thought to be close, unit angstrom
+my $sort = "False "; # if True, sored the final structure by the initial structure
+my $dd = 0.1; #the step size in optmize
+my $dc = 1.0; #if the distance between atom in images and in initial atom is bigger than 1.0, this atom are thought to be active, not matrix or frozen 
 
 #do not change below codes unless you konw what yuou are doing!!!
 my @stepx;
 my @stepy;
 my @stepz;
-my $status = Documents->New("status.txt");
 
 my $inidoc = $Documents{"$inifile.xsd"};
 my $findoc = $Documents{"$finfile.xsd"};
 
 my $iniatoms = $inidoc->UnitCell->Atoms;
-my $finatoms = $findoc->UnitCell->Atoms;
-       
+my $finatoms = $findoc->UnitCell->Atoms;     
 
-sub check_d {
-    #this function check the distance between atoms, three input parameters are: atoms list, output status file, dmin
-    my ($a, $b, $c) = @_;
+sub opt_d {
+    #this function optimize the atoms that are too close based on hard sphere model
+    my ($a, $b) = @_;
+    my $dmin2 = $dmin**2;
     for(my $m=0; $m<$a->Count; ++$m){
-        for(my $n=$m+1; $n<$a->Count; ++$n){
-            my $dx = (@$a[$m]->X - @$a[$n]->X)**2;
-            my $dy = (@$a[$m]->Y - @$a[$n]->Y)**2;
-            my $dz = (@$a[$m]->Z - @$a[$n]->Z)**2;
-            my $ds = sqrt($dx + $dy + $dz);
-            if ($ds < $dmin){
-                $b->Append(sprintf " caution! the %sth atom and %sth atom in %s.xsd are too close. \n", $m, $n, $c);
-                }}}
+        my $de = 0;my $adx = 0; my $ady = 0; my $adz = 0; my $theta = 0; 
+        for(my $n=0; $n<$a->Count; ++$n){
+            if($n == $m){next};
+            my $dx = @$a[$m]->X - @$a[$n]->X;
+            my $dy = @$a[$m]->Y - @$a[$n]->Y;
+            my $dz = @$a[$m]->Z - @$a[$n]->Z;
+            my $ds = $dx**2 + $dy**2 + $dz**2;
+            if ($ds < $dmin2){
+                $de += 1; 
+                $adx += $dx;
+                $ady += $dy;
+                $adz += $dz;
+                }};
+        my $itr = 0;
+        my $xx = @$a[$m]->X - @$b[$m]->X;
+        my $yy = @$a[$m]->Y - @$b[$m]->Y;
+        my $zz = @$a[$m]->Z - @$b[$m]->Z;
+        my $dv = sqrt($xx**2+$yy**2+$zz**2);
+        while( $dv > 1.0 and $de > 0 ){ 
+            @$a[$m]->X +=  $adx*$dd;
+            @$a[$m]->Y +=  $ady*$dd;
+            @$a[$m]->Z +=  $adz*$dd;
+            $de  = 0; $adx = 0; $ady = 0; $adz = 0;
+            for(my $n=0; $n<$a->Count; ++$n){ 
+                if($n == $m){next};             
+                my $dx = @$a[$m]->X - @$a[$n]->X;
+                my $dy = @$a[$m]->Y - @$a[$n]->Y;
+                my $dz = @$a[$m]->Z - @$a[$n]->Z;
+                my $ds = $dx**2 + $dy**2 + $dz**2;
+                if ($ds < $dmin2){
+                   $de += 1; 
+                   $adx += $dx;
+                   $ady += $dy;
+                   $adz += $dz;
+                }};
+            $itr += 1;
+            if($itr > 100){
+                last}
                 }
+                }}
+                
 
 sub sortatoms {
     my ($k, $l) = @_;
@@ -74,9 +108,6 @@ $finatoms = $Documents{"sorted.xsd"}->UnitCell->Atoms;
 $finfile = "sorted";
        }
 
-check_d($iniatoms, $status, $inifile);
-check_d($finatoms, $status, $finfile);
-
 #get the stepsize between images            
 for(my $i=0; $i<$iniatoms->Count; ++$i){
     $stepx[$i] = (@$finatoms[$i]->X - @$iniatoms[$i]->X)/($images_num + 1);
@@ -94,5 +125,5 @@ for(my $j=1; $j<=$images_num; ++$j){
         @$inneratoms[$k]->Y = @$iniatoms[$k]->Y + $j*$stepy[$k];
         @$inneratoms[$k]->Z = @$iniatoms[$k]->Z + $j*$stepz[$k];
     }
-    check_d($inneratoms, $status, $j);
+    opt_d($inneratoms, $iniatoms);
     }
