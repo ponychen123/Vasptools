@@ -1,2 +1,4 @@
 # Vasptools
 some toolkits for VASP
+## vaspeqstress.sh
+小侯飞氚用python2写了VASP定压优化脚本，我之前用python3重写成vaspeqstress.py，但是我不喜欢python加模块的模式，而且服务器上常常不好自己配置python，当然也可能是我想多了。总之我用bash重新写了vaspeqstress.sh，不需要任何多余的模块，并且这样也可以很方便的用于PBS作业管理系统。其实脚本里面已经把用法说的很详细，由于我不喜欢在我的仓库里面加例子和额外的文档，如果确实需要更详细的例子或者说明，我可以找个公众号写写，但是我觉得这玩意发公众号好像太菜鸟了，如果有公众号觉得这有发的价值再说吧。。。
