@@ -1,4 +1,5 @@
 #!perl
+#by deduct the linear partion in the displacement vecotr, now this script support to uniformly distribute the images by turn the $uniform to True 20190515
 #remove the check_d function, add opt_d function, this is a rather easy way to optimize the initial path based on hard sphere model ponychen 20190509
 #add a sortatoms function ,sort the atoms if the atoms oder changes . but not works for stacking faults!!! ponychen 20190502.
 #i like model systems in MS but it's awful to make neb path by using nebmake.pl under linux. sometimes you need further modulate the path.thus i
@@ -18,14 +19,18 @@ my $inifile = "00"; #your initial xsd filename
 my $finfile = "06"; #your final xsd filename
 my $images_num = 5; #how much images would you create
 my $dmin = 2.3;       #belowe which the atoms are thought to be close, unit angstrom
-my $sort = "False "; # if True, sored the final structure by the initial structure
+my $sort = "False"; # if True, sored the final structure by the initial structure
 my $dd = 0.1; #the step size in optmize
-my $dc = 1.0; #if the distance between atom in images and in initial atom is bigger than 1.0, this atom are thought to be active, not matrix or frozen 
+my $dc = 0.0; #if the distance between atom in images and in initial atom is bigger than 1.0, this atom are thought to be active, not matrix or frozen 
+my $uniform = "False";#if True, the images are set to uniformly distribute along the transition path. but this not always well.
 
 #do not change below codes unless you konw what yuou are doing!!!
 my @stepx;
 my @stepy;
 my @stepz;
+my @unitstepx;
+my @unitstepy;
+my @unitstepz;
 
 my $inidoc = $Documents{"$inifile.xsd"};
 my $findoc = $Documents{"$finfile.xsd"};
@@ -35,12 +40,12 @@ my $finatoms = $findoc->UnitCell->Atoms;
 
 sub opt_d {
     #this function optimize the atoms that are too close based on hard sphere model
-    my ($a, $b) = @_;
+    my ($a, $b, @c, @d, @e) = @_;
     my $dmin2 = $dmin**2;
     for(my $m=0; $m<$a->Count; ++$m){
-        my $de = 0;my $adx = 0; my $ady = 0; my $adz = 0; my $theta = 0; 
+        my $de = 0;my $adx = 0; my $ady = 0; my $adz = 0; my $theta = 0; my $newadx = 0; my $newady = 0; my $newadz = 0; 
         for(my $n=0; $n<$a->Count; ++$n){
-            if($n == $m){next};
+            if( $n == $m ) {next};
             my $dx = @$a[$m]->X - @$a[$n]->X;
             my $dy = @$a[$m]->Y - @$a[$n]->Y;
             my $dz = @$a[$m]->Z - @$a[$n]->Z;
@@ -51,15 +56,23 @@ sub opt_d {
                 $ady += $dy;
                 $adz += $dz;
                 }};
+        $newadx = $adx - $adx*$c[$m];
+        $newady = $ady - $ady*$d[$m];
+        $newadz = $adz - $adz*$e[$m];
         my $itr = 0;
         my $xx = @$a[$m]->X - @$b[$m]->X;
         my $yy = @$a[$m]->Y - @$b[$m]->Y;
         my $zz = @$a[$m]->Z - @$b[$m]->Z;
         my $dv = sqrt($xx**2+$yy**2+$zz**2);
-        while( $dv > 1.0 and $de > 0 ){ 
+        while( $dv > 1.0 and $de > 0 ){
+            if($uniform eq "True"){
+            @$a[$m]->X +=  $newadx*$dd;
+            @$a[$m]->Y +=  $newady*$dd;
+            @$a[$m]->Z +=  $newadz*$dd;}
+            else{
             @$a[$m]->X +=  $adx*$dd;
             @$a[$m]->Y +=  $ady*$dd;
-            @$a[$m]->Z +=  $adz*$dd;
+            @$a[$m]->Z +=  $adz*$dd;}
             $de  = 0; $adx = 0; $ady = 0; $adz = 0;
             for(my $n=0; $n<$a->Count; ++$n){ 
                 if($n == $m){next};             
@@ -113,6 +126,11 @@ for(my $i=0; $i<$iniatoms->Count; ++$i){
     $stepx[$i] = (@$finatoms[$i]->X - @$iniatoms[$i]->X)/($images_num + 1);
     $stepy[$i] = (@$finatoms[$i]->Y - @$iniatoms[$i]->Y)/($images_num + 1);
     $stepz[$i] = (@$finatoms[$i]->Z - @$iniatoms[$i]->Z)/($images_num + 1);
+    #get the unit step vector of each atom
+    my $distance = sqrt($stepx[$i]**2 + $stepy[$i]**2 + $stepz[$i]**2);
+    $unitstepx[$i] = $stepx[$i]/$distance;
+    $unitstepy[$i] = $stepy[$i]/$distance;
+    $unitstepz[$i] = $stepz[$i]/$distance;
     }
 
 #create images
@@ -125,5 +143,5 @@ for(my $j=1; $j<=$images_num; ++$j){
         @$inneratoms[$k]->Y = @$iniatoms[$k]->Y + $j*$stepy[$k];
         @$inneratoms[$k]->Z = @$iniatoms[$k]->Z + $j*$stepz[$k];
     }
-    opt_d($inneratoms, $iniatoms);
+    opt_d($inneratoms, $iniatoms, @unitstepx, @unitstepy, @unitstepz);
     }
