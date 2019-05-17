@@ -16,6 +16,11 @@
 #author: ponychen  email:18709821294@outlook.com
 #2019/04/18
 #2019/05/13 now ponychen write this in bash shell
+#2019/05/17 add PBS columns
+##PBS -L nodes=6:ppn=12
+##PBS -L walltime=3:00:00
+##PBS -V
+##PBS -N test
 #Set the target pressure tensor(xx, yy, zz, xy, yz, zx) in Kbar. Note pressure
 #= -stress in VASP
 Setpress=( 100 0.0 0.0 0.0 0.0 0.0 )
@@ -33,6 +38,7 @@ imax=100
 P=0.9
 #Set your path effectively to run vasp
 mpiexe="vasp_std"
+#mpiexe='mpirun -np 12 vasp_std"
 
 ###do not change following codes unless you know what you are doing###
 #######initial run to get the pressure tensor present####
