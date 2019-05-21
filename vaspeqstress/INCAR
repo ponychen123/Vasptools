@@ -1,0 +1,9 @@
+SYSTEM  = Ni fcc bulk 
+ISTART  = 0
+ISPIN   = 2
+MAGMOM  = 1.0
+ISMEAR  = -5
+VOSKOWN = 1
+LORBIT  = 11
+NSW = 200
+IBRION = 2

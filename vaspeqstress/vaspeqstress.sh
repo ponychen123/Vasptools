@@ -23,7 +23,7 @@
 ##PBS -N test
 #Set the target pressure tensor(xx, yy, zz, xy, yz, zx) in Kbar. Note pressure
 #= -stress in VASP
-Setpress=( 100 0.0 0.0 0.0 0.0 0.0 )
+Setpress=( 0.0 100.0 0.0 0.0 0.0 0.0 )
 #convergency criteria for pressure,
 presscirt=0.1
 #Young's modulus in Kbar
