@@ -1,4 +1,5 @@
 #!/bin/bash
+#20190524 fix a bug
 #a simple bash shell to add a series of specific strain on the cell
 #warning: you should use the direct coordition 
 #warning: your cell should better to be orthogonallty
@@ -19,7 +20,8 @@ eval $(awk -v arr1="${newstrain[*]}" '
 	             adds[1]+=1;
 			     adds[2]+=1;
 			     adds[3]+=1;}
-		   NR>=3 && NR<=5 {r0[NR]=$1;s0[NR]=$2;t0[NR]=$3}
+		   NR==2 {scal=$1}
+		   NR>=3 && NR<=5 {r0[NR]=$1*scal;s0[NR]=$2*scal;t0[NR]=$3*scal}
 		   END{r1[3]=adds[1]*r0[3]+adds[4]*r0[4]+adds[5]*r0[5];
 		       s1[3]=adds[1]*s0[3]+adds[4]*s0[4]+adds[5]*s0[5];
 			   t1[3]=adds[1]*t0[3]+adds[4]*t0[4]+adds[5]*t0[5];
