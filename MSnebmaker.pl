@@ -1,4 +1,5 @@
 #!perl
+#20190525 adding pbc condition, this version may be the last one..
 #by deduct the linear partion in the displacement vecotr, now this script support to uniformly distribute the images by turn the $uniform to True 20190515
 #remove the check_d function, add opt_d function, this is a rather easy way to optimize the initial path based on hard sphere model ponychen 20190509
 #add a sortatoms function ,sort the atoms if the atoms oder changes . but not works for stacking faults!!! ponychen 20190502.
@@ -22,7 +23,7 @@ my $dmin = 2.3;       #belowe which the atoms are thought to be close, unit angs
 my $sort = "False"; # if True, sored the final structure by the initial structure
 my $dd = 0.1; #the step size in optmize
 my $dc = 0.0; #if the distance between atom in images and in initial atom is bigger than 1.0, this atom are thought to be active, not matrix or frozen 
-my $uniform = "False";#if True, the images are set to uniformly distribute along the transition path. but this not always well.
+my $uniform = "True";#if True, the images are set to uniformly distribute along the transition path. but this not always well.
 
 #do not change below codes unless you konw what yuou are doing!!!
 my @stepx;
@@ -36,20 +37,43 @@ my $inidoc = $Documents{"$inifile.xsd"};
 my $findoc = $Documents{"$finfile.xsd"};
 
 my $iniatoms = $inidoc->UnitCell->Atoms;
-my $finatoms = $findoc->UnitCell->Atoms;     
+my $finatoms = $findoc->UnitCell->Atoms;
+
+#get the coordination matrix of three bias axis
+my @vec;
+    $vec[0] = $inidoc->SymmetryDefinition->VectorA->X;
+    $vec[1] = $inidoc->SymmetryDefinition->VectorB->X;
+    $vec[2] = $inidoc->SymmetryDefinition->VectorC->X;
+    $vec[3] = $inidoc->SymmetryDefinition->VectorA->Y;
+    $vec[4] = $inidoc->SymmetryDefinition->VectorB->Y;
+    $vec[5] = $inidoc->SymmetryDefinition->VectorC->Y;
+    $vec[6] = $inidoc->SymmetryDefinition->VectorA->Z;
+    $vec[7] = $inidoc->SymmetryDefinition->VectorB->Z;
+    $vec[8] = $inidoc->SymmetryDefinition->Vectorc->z;    
 
 sub opt_d {
     #this function optimize the atoms that are too close based on hard sphere model
-    my ($a, $b, @c, @d, @e) = @_;
+    my ($a, $b, @c, @d, @e, @vec) = @_;
     my $dmin2 = $dmin**2;
     for(my $m=0; $m<$a->Count; ++$m){
         my $de = 0;my $adx = 0; my $ady = 0; my $adz = 0; my $theta = 0; my $newadx = 0; my $newady = 0; my $newadz = 0; 
         for(my $n=0; $n<$a->Count; ++$n){
             if( $n == $m ) {next};
-            my $dx = @$a[$m]->X - @$a[$n]->X;
-            my $dy = @$a[$m]->Y - @$a[$n]->Y;
-            my $dz = @$a[$m]->Z - @$a[$n]->Z;
-            my $ds = $dx**2 + $dy**2 + $dz**2;
+            my $veca = @$a[$m]->FractionalXYZ->X - @$a[$n]->FractionalXYZ->X;
+            my $vecb = @$a[$m]->FractionalXYZ->Y - @$a[$n]->FractionalXYZ->Y;
+            my $vecc = @$a[$m]->FractionalXYZ->Z - @$a[$n]->FractionalXYZ->Z;
+            #performing pbc condition
+            if($veca>0.5){$veca-=1};
+            if($veca<-0.5){$veca+=1};
+            if($vecb>0.5){$vecb-=1};
+            if($vecb<-0.5){$vecb+=1};
+            if($vecc>0.5){$vecc-=1};
+            if($vecc<-0.5){$vecc+=1};
+            #transport the displacement vector to Cartersian coordination
+            my $dx = $veca*$vec[0]+$vecb*$vec[1]+$vecc*$vec[2];
+            my $dy = $veca*$vec[3]+$vecb*$vec[4]+$vecc*$vec[5];
+            my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
+            my $ds = $adx**2 + $ady**2 + $adz**2;
             if ($ds < $dmin2){
                 $de += 1; 
                 $adx += $dx;
@@ -90,7 +114,8 @@ sub opt_d {
             if($itr > 100){
                 last}
                 }
-                }}
+                }
+                }
                 
 
 sub sortatoms {
@@ -143,5 +168,5 @@ for(my $j=1; $j<=$images_num; ++$j){
         @$inneratoms[$k]->Y = @$iniatoms[$k]->Y + $j*$stepy[$k];
         @$inneratoms[$k]->Z = @$iniatoms[$k]->Z + $j*$stepz[$k];
     }
-    opt_d($inneratoms, $iniatoms, @unitstepx, @unitstepy, @unitstepz);
+    opt_d($inneratoms, $iniatoms, @unitstepx, @unitstepy, @unitstepz, @vec);
     }
