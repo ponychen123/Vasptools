@@ -1,4 +1,5 @@
 #!perl
+#20190529 fix bugs of 20190525 version
 #20190525 adding pbc condition, this version may be the last one..
 #by deduct the linear partion in the displacement vecotr, now this script support to uniformly distribute the images by turn the $uniform to True 20190515
 #remove the check_d function, add opt_d function, this is a rather easy way to optimize the initial path based on hard sphere model ponychen 20190509
@@ -20,10 +21,10 @@ my $inifile = "00"; #your initial xsd filename
 my $finfile = "06"; #your final xsd filename
 my $images_num = 5; #how much images would you create
 my $dmin = 2.3;       #belowe which the atoms are thought to be close, unit angstrom
-my $sort = "False"; # if True, sored the final structure by the initial structure
-my $dd = 0.1; #the step size in optmize
-my $dc = 0.0; #if the distance between atom in images and in initial atom is bigger than 1.0, this atom are thought to be active, not matrix or frozen 
-my $uniform = "True";#if True, the images are set to uniformly distribute along the transition path. but this not always well.
+my $sort = "False"; # if True, sored the final structure by the initial structure, only expermentlly use
+my $dd = 0.3; #the step size in optmize
+my $dc = 0.5; #if the distance between atom in images and in initial atom is bigger than 0.5, this atom are thought to be active, not matrix or frozen 
+my $uniform = "False";#if True, the images are set to uniformly distribute along the transition path. but this not always well.
 
 #do not change below codes unless you konw what yuou are doing!!!
 my @stepx;
@@ -32,6 +33,9 @@ my @stepz;
 my @unitstepx;
 my @unitstepy;
 my @unitstepz;
+my $uspx = \@unitstepx;
+my $uspy = \@unitstepy;
+my $uspz = \@unitstepz;
 
 my $inidoc = $Documents{"$inifile.xsd"};
 my $findoc = $Documents{"$finfile.xsd"};
@@ -53,7 +57,7 @@ my @vec;
 
 sub opt_d {
     #this function optimize the atoms that are too close based on hard sphere model
-    my ($a, $b, @c, @d, @e, @vec) = @_;
+    my ($a, $b, $c, $d, $e) = @_;
     my $dmin2 = $dmin**2;
     for(my $m=0; $m<$a->Count; ++$m){
         my $de = 0;my $adx = 0; my $ady = 0; my $adz = 0; my $theta = 0; my $newadx = 0; my $newady = 0; my $newadz = 0; 
@@ -73,23 +77,27 @@ sub opt_d {
             my $dx = $veca*$vec[0]+$vecb*$vec[1]+$vecc*$vec[2];
             my $dy = $veca*$vec[3]+$vecb*$vec[4]+$vecc*$vec[5];
             my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
-            my $ds = $adx**2 + $ady**2 + $adz**2;
+            my $ds = $dx**2 + $dy**2 + $dz**2;
             if ($ds < $dmin2){
                 $de += 1; 
                 $adx += $dx;
                 $ady += $dy;
                 $adz += $dz;
                 }};
-        $newadx = $adx - $adx*$c[$m];
-        $newady = $ady - $ady*$d[$m];
-        $newadz = $adz - $adz*$e[$m];
+        $newadx = $adx - $adx*@$c[$m];
+        $newady = $ady - $ady*@$d[$m];
+        $newadz = $adz - $adz*@$e[$m];
         my $itr = 0;
         my $xx = @$a[$m]->X - @$b[$m]->X;
         my $yy = @$a[$m]->Y - @$b[$m]->Y;
         my $zz = @$a[$m]->Z - @$b[$m]->Z;
         my $dv = sqrt($xx**2+$yy**2+$zz**2);
-        while( $dv > 1.0 and $de > 0 ){
+        #only when the atom is active and meet too closely with others,then this atom will be relaxed
+        while( $dv > $dc and $de > 0 ){
             if($uniform eq "True"){
+            $newadx = $adx - $adx*@$c[$m];
+            $newady = $ady - $ady*@$d[$m];
+            $newadz = $adz - $adz*@$e[$m];
             @$a[$m]->X +=  $newadx*$dd;
             @$a[$m]->Y +=  $newady*$dd;
             @$a[$m]->Z +=  $newadz*$dd;}
@@ -100,10 +108,21 @@ sub opt_d {
             $de  = 0; $adx = 0; $ady = 0; $adz = 0;
             for(my $n=0; $n<$a->Count; ++$n){ 
                 if($n == $m){next};             
-                my $dx = @$a[$m]->X - @$a[$n]->X;
-                my $dy = @$a[$m]->Y - @$a[$n]->Y;
-                my $dz = @$a[$m]->Z - @$a[$n]->Z;
-                my $ds = $dx**2 + $dy**2 + $dz**2;
+            my $veca = @$a[$m]->FractionalXYZ->X - @$a[$n]->FractionalXYZ->X;
+            my $vecb = @$a[$m]->FractionalXYZ->Y - @$a[$n]->FractionalXYZ->Y;
+            my $vecc = @$a[$m]->FractionalXYZ->Z - @$a[$n]->FractionalXYZ->Z;
+            #performing pbc condition
+            if($veca>0.5){$veca-=1};
+            if($veca<-0.5){$veca+=1};
+            if($vecb>0.5){$vecb-=1};
+            if($vecb<-0.5){$vecb+=1};
+            if($vecc>0.5){$vecc-=1};
+            if($vecc<-0.5){$vecc+=1};
+            #transport the displacement vector to Cartersian coordination
+            my $dx = $veca*$vec[0]+$vecb*$vec[1]+$vecc*$vec[2];
+            my $dy = $veca*$vec[3]+$vecb*$vec[4]+$vecc*$vec[5];
+            my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
+            my $ds = $dx**2 + $dy**2 + $dz**2;
                 if ($ds < $dmin2){
                    $de += 1; 
                    $adx += $dx;
@@ -119,15 +138,30 @@ sub opt_d {
                 
 
 sub sortatoms {
+    #this is a sillyu function, most times it not works well...
     my ($k, $l) = @_;
     my $sorteddoc = Documents->New("sorted.xsd");
     $sorteddoc->CopyFrom($inidoc);
     my $sortedatoms = $sorteddoc->UnitCell->Atoms;
     for(my $i=0; $i<$sortedatoms->Count; ++$i){
-        my $rc = 5;
+        my $rc = 100;
         my $atomnew = @$l[0];
         foreach my $atoml (@$l){
-            my $r = (@$k[$i]->X - $atoml->X)**2 + (@$k[$i]->Y - $atoml->Y)**2 + (@$k[$i]->Z - $atoml->Z)**2;
+            my $veca = @$k[$i]->FractionalXYZ->X - $atoml->FractionalXYZ->X;
+            my $vecb = @$k[$i]->FractionalXYZ->Y - $atoml->FractionalXYZ->Y;
+            my $vecc = @$k[$i]->FractionalXYZ->Z - $atoml->FractionalXYZ->Z;
+            #performing pbc condition
+            if($veca>0.5){$veca-=1};
+            if($veca<-0.5){$veca+=1};
+            if($vecb>0.5){$vecb-=1};
+            if($vecb<-0.5){$vecb+=1};
+            if($vecc>0.5){$vecc-=1};
+            if($vecc<-0.5){$vecc+=1};
+            #transport the displacement vector to Cartersian coordination
+            my $dx = $veca*$vec[0]+$vecb*$vec[1]+$vecc*$vec[2];
+            my $dy = $veca*$vec[3]+$vecb*$vec[4]+$vecc*$vec[5];
+            my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
+            my $r = $dx**2 + $dy**2 + $dz**2;
             if ($r < $rc and @$k[$i]->ElementSymbol == $atoml->ElementSymbol){
                 $rc = $r;
                 $atomnew = $atoml;
@@ -168,5 +202,5 @@ for(my $j=1; $j<=$images_num; ++$j){
         @$inneratoms[$k]->Y = @$iniatoms[$k]->Y + $j*$stepy[$k];
         @$inneratoms[$k]->Z = @$iniatoms[$k]->Z + $j*$stepz[$k];
     }
-    opt_d($inneratoms, $iniatoms, @unitstepx, @unitstepy, @unitstepz, @vec);
+    opt_d($inneratoms, $iniatoms, $uspx, $uspy, $uspz);
     }
