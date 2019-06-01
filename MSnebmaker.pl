@@ -1,4 +1,5 @@
 #!perl
+#20190601 adding weight function 2/d^-4, it looks wonderfoul
 #20190529 fix bugs of 20190525 version
 #20190525 adding pbc condition, this version may be the last one..
 #by deduct the linear partion in the displacement vecotr, now this script support to uniformly distribute the images by turn the $uniform to True 20190515
@@ -79,10 +80,12 @@ sub opt_d {
             my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
             my $ds = $dx**2 + $dy**2 + $dz**2;
             if ($ds < $dmin2){
+                #apply weighting function 2/d^-4
+                my $dss = sqrt($ds);
                 $de += 1; 
-                $adx += $dx;
-                $ady += $dy;
-                $adz += $dz;
+                $adx += 2/$dss**4*$dx;
+                $ady += 2/$dss**4*$dy;
+                $adz += 2/$dss**4*$dz;
                 }};
         $newadx = $adx - $adx*@$c[$m];
         $newady = $ady - $ady*@$d[$m];
@@ -124,10 +127,12 @@ sub opt_d {
             my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
             my $ds = $dx**2 + $dy**2 + $dz**2;
                 if ($ds < $dmin2){
+                   #apply weighting funcion 2/d^-4
+                   my $dss = sqrt($ds);
                    $de += 1; 
-                   $adx += $dx;
-                   $ady += $dy;
-                   $adz += $dz;
+                   $adx += 2/$dss**4*$dx;
+                   $ady += 2/$dss**4*$dy;
+                   $adz += 2/$dss**4*$dz;
                 }};
             $itr += 1;
             if($itr > 100){
