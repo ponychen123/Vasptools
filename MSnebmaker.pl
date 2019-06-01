@@ -1,4 +1,5 @@
 #!perl
+#20190601 reconstruction all the code 
 #20190601 adding weight function 2/d^-4, it looks wonderfoul
 #20190529 fix bugs of 20190525 version
 #20190525 adding pbc condition, this version may be the last one..
@@ -18,14 +19,17 @@ use Getopt::Long;
 use MaterialsScript qw(:all);
 
 #chage following values
-my $inifile = "00"; #your initial xsd filename
-my $finfile = "06"; #your final xsd filename
-my $images_num = 5; #how much images would you create
+my $inifile = "00";   #your initial xsd filename
+my $finfile = "06";   #your final xsd filename
+my $images_num = 5;   #how much images would you create
 my $dmin = 2.3;       #belowe which the atoms are thought to be close, unit angstrom
-my $sort = "False"; # if True, sored the final structure by the initial structure, only expermentlly use
-my $dd = 0.3; #the step size in optmize
-my $dc = 0.5; #if the distance between atom in images and in initial atom is bigger than 0.5, this atom are thought to be active, not matrix or frozen 
+my $sort = "False";   #if True, sored the final structure by the initial structure, only expermentlly use
+my $dd = 0.3;         #the step size in optmize
+my $dc = 0.5;         #if the distance between atom in images and in initial atom is bigger than 0.5, this atom are thought to be active, not matrix or frozen 
 my $uniform = "False";#if True, the images are set to uniformly distribute along the transition path. but this not always well.
+my $maxitr = 100;     #the maximum iteration for each cycle in optimization.
+my $A = 2;            #the amplitude of weight function A/d^-N
+my $N = 4;            #the power of weight function A/d^-N
 
 #do not change below codes unless you konw what yuou are doing!!!
 my @stepx;
@@ -60,90 +64,72 @@ sub opt_d {
     #this function optimize the atoms that are too close based on hard sphere model
     my ($a, $b, $c, $d, $e) = @_;
     my $dmin2 = $dmin**2;
-    for(my $m=0; $m<$a->Count; ++$m){
-        my $de = 0;my $adx = 0; my $ady = 0; my $adz = 0; my $theta = 0; my $newadx = 0; my $newady = 0; my $newadz = 0; 
-        for(my $n=0; $n<$a->Count; ++$n){
-            if( $n == $m ) {next};
-            my $veca = @$a[$m]->FractionalXYZ->X - @$a[$n]->FractionalXYZ->X;
-            my $vecb = @$a[$m]->FractionalXYZ->Y - @$a[$n]->FractionalXYZ->Y;
-            my $vecc = @$a[$m]->FractionalXYZ->Z - @$a[$n]->FractionalXYZ->Z;
-            #performing pbc condition
-            if($veca>0.5){$veca-=1};
-            if($veca<-0.5){$veca+=1};
-            if($vecb>0.5){$vecb-=1};
-            if($vecb<-0.5){$vecb+=1};
-            if($vecc>0.5){$vecc-=1};
-            if($vecc<-0.5){$vecc+=1};
-            #transport the displacement vector to Cartersian coordination
-            my $dx = $veca*$vec[0]+$vecb*$vec[1]+$vecc*$vec[2];
-            my $dy = $veca*$vec[3]+$vecb*$vec[4]+$vecc*$vec[5];
-            my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
-            my $ds = $dx**2 + $dy**2 + $dz**2;
-            if ($ds < $dmin2){
-                #apply weighting function 2/d^-4
-                my $dss = sqrt($ds);
-                $de += 1; 
-                $adx += 2/$dss**4*$dx;
-                $ady += 2/$dss**4*$dy;
-                $adz += 2/$dss**4*$dz;
-                }};
-        $newadx = $adx - $adx*@$c[$m];
-        $newady = $ady - $ady*@$d[$m];
-        $newadz = $adz - $adz*@$e[$m];
-        my $itr = 0;
-        my $xx = @$a[$m]->X - @$b[$m]->X;
-        my $yy = @$a[$m]->Y - @$b[$m]->Y;
-        my $zz = @$a[$m]->Z - @$b[$m]->Z;
-        my $dv = sqrt($xx**2+$yy**2+$zz**2);
-        #only when the atom is active and meet too closely with others,then this atom will be relaxed
-        while( $dv > $dc and $de > 0 ){
-            if($uniform eq "True"){
-            $newadx = $adx - $adx*@$c[$m];
-            $newady = $ady - $ady*@$d[$m];
-            $newadz = $adz - $adz*@$e[$m];
-            @$a[$m]->X +=  $newadx*$dd;
-            @$a[$m]->Y +=  $newady*$dd;
-            @$a[$m]->Z +=  $newadz*$dd;}
-            else{
-            @$a[$m]->X +=  $adx*$dd;
-            @$a[$m]->Y +=  $ady*$dd;
-            @$a[$m]->Z +=  $adz*$dd;}
-            $de  = 0; $adx = 0; $ady = 0; $adz = 0;
-            for(my $n=0; $n<$a->Count; ++$n){ 
-                if($n == $m){next};             
-            my $veca = @$a[$m]->FractionalXYZ->X - @$a[$n]->FractionalXYZ->X;
-            my $vecb = @$a[$m]->FractionalXYZ->Y - @$a[$n]->FractionalXYZ->Y;
-            my $vecc = @$a[$m]->FractionalXYZ->Z - @$a[$n]->FractionalXYZ->Z;
-            #performing pbc condition
-            if($veca>0.5){$veca-=1};
-            if($veca<-0.5){$veca+=1};
-            if($vecb>0.5){$vecb-=1};
-            if($vecb<-0.5){$vecb+=1};
-            if($vecc>0.5){$vecc-=1};
-            if($vecc<-0.5){$vecc+=1};
-            #transport the displacement vector to Cartersian coordination
-            my $dx = $veca*$vec[0]+$vecb*$vec[1]+$vecc*$vec[2];
-            my $dy = $veca*$vec[3]+$vecb*$vec[4]+$vecc*$vec[5];
-            my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
-            my $ds = $dx**2 + $dy**2 + $dz**2;
+    my $de = 1;
+    my $itr = 0;
+    my @adx; my @ady; my @adz; my @newadx; my @newady; my @newadz; 
+    while($de > 0){
+        #initialize
+        $de = 0;
+        for(my $m=0; $m<$a->Count; ++$m){ 
+            $adx[$m] = 0; $ady[$m] = 0; $adz[$m] = 0; $newadx[$m] = 0; $newady[$m] = 0; $newadz[$m] = 0;
+            for(my $n=0; $n<$a->Count; ++$n){
+                if( $n == $m ) {next};
+                my $veca = @$a[$m]->FractionalXYZ->X - @$a[$n]->FractionalXYZ->X;
+                my $vecb = @$a[$m]->FractionalXYZ->Y - @$a[$n]->FractionalXYZ->Y;
+                my $vecc = @$a[$m]->FractionalXYZ->Z - @$a[$n]->FractionalXYZ->Z;
+                #performing pbc condition
+                if($veca>0.5){$veca-=1};
+                if($veca<-0.5){$veca+=1};
+                if($vecb>0.5){$vecb-=1};
+                if($vecb<-0.5){$vecb+=1};
+                if($vecc>0.5){$vecc-=1};
+                if($vecc<-0.5){$vecc+=1};
+                #transport the displacement vector to Cartersian coordination
+                my $dx = $veca*$vec[0]+$vecb*$vec[1]+$vecc*$vec[2];
+                my $dy = $veca*$vec[3]+$vecb*$vec[4]+$vecc*$vec[5];
+                my $dz = $veca*$vec[6]+$vecb*$vec[7]+$vecc*$vec[8];
+                my $ds = $dx**2 + $dy**2 + $dz**2;
                 if ($ds < $dmin2){
-                   #apply weighting funcion 2/d^-4
-                   my $dss = sqrt($ds);
-                   $de += 1; 
-                   $adx += 2/$dss**4*$dx;
-                   $ady += 2/$dss**4*$dy;
-                   $adz += 2/$dss**4*$dz;
-                }};
-            $itr += 1;
-            if($itr > 100){
-                last}
-                }
-                }
-                }
-                
+                    #apply weighting function 2/d^-4
+                    my $dss = sqrt($ds);
+                    $de += 1; 
+                    $adx[$m] += $A/$dss**$N*$dx;
+                    $ady[$m] += $A/$dss**$N*$dy;
+                    $adz[$m] += $A/$dss**$N*$dz;}
+                    };
+        if($uniform eq "True"){
+             $newadx[$m] = $adx[$m] - $adx[$m]*@$c[$m];
+             $newady[$m] = $ady[$m] - $ady[$m]*@$d[$m];
+             $newadz[$m] = $adz[$m] - $adz[$m]*@$e[$m];}
+             }
+        #displace atoms by displacement vector
+        for(my $m=0; $m<$a->Count; ++$m){
+            my $xx = @$a[$m]->X - @$b[$m]->X;
+            my $yy = @$a[$m]->Y - @$b[$m]->Y;
+            my $zz = @$a[$m]->Z - @$b[$m]->Z;
+            my $dv = sqrt($xx**2+$yy**2+$zz**2);
+            #only when the atom is active and meet too closely with others,then this atom will be relaxed
+            if($dv > $dc){
+                if($uniform eq "True"){
+                    @$a[$m]->X +=  $newadx[$m]*$dd;
+                    @$a[$m]->Y +=  $newady[$m]*$dd;
+                    @$a[$m]->Z +=  $newadz[$m]*$dd;}
+                    else{
+                         @$a[$m]->X +=  $adx[$m]*$dd;
+                         @$a[$m]->Y +=  $ady[$m]*$dd;
+                         @$a[$m]->Z +=  $adz[$m]*$dd;}
+                         }
+        $itr += 1;
+        #if iretation steps reaching $maxitr, break this function and you should check relative parameters
+        if($itr > $maxitr){
+            last}
+        }}    
+        }        
+
 
 sub sortatoms {
-    #this is a sillyu function, most times it not works well...
+    #this is a silly function, most times it not works well...
+    #it wasn't recommened to use this function at present
     my ($k, $l) = @_;
     my $sorteddoc = Documents->New("sorted.xsd");
     $sorteddoc->CopyFrom($inidoc);
