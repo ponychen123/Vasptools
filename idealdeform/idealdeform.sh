@@ -1,4 +1,6 @@
 #!/bin/bash
+#20190611 add support for specified strain tensor.you need add six tensor component
+#in the mystrain,mystrain means step size of the apply strain.
 #20190528 add true stress strain curve and add PBS related parameters and fix some bugs
 #20190524 fix a bug
 #a simple bash shell to perform ideal tansile or shear process,and get the
@@ -16,11 +18,13 @@
 ##PBS -N test
 
 #change following parameters as you like
-orientation="XX" #set which type of strain
-initial=0.0      #set the initial strain
+orientation="XX"  #set which type of strain
+initial=0.0       #set the initial strain
 step=0.01         #set the step size
-num=100            #how much strain to apply
+num=2             #how much strain to apply
 mpiexec="vasp_std"
+mystrain=( )      #set step size of the strain, if  specified, only num value are used and other valuies are ommtied
+
 #mpiexe="mpirun -np 12 vasp_std"
 
 #do not change following codes unless you know what you are doing
@@ -75,6 +79,7 @@ echo "starting calculation, hold on, drink coffee and sleeping..."
 #get the strain type
 for((i=0;i<=num;i++))
 do
+    if  test -z "${mystrain[*]}" ;then
 	eval $(awk -v i=$i -v step=$step -v initial=$initial '
 	BEGIN {strain=initial+i*step;
 	       printf("strain=%f;",strain)}'
@@ -109,17 +114,55 @@ do
 			exit 1
 			;;
 	esac
+    else
+    eval $(awk -v arr1="${mystrain[*]}" -v i=$i '
+	BEGIN {split(arr1, adds, " ");
+          for(j=1;j<=6;j++){
+          adds[j]=0.0+adds[j]*i;}
+          printf("Setstrain=( %9.6f %9.6f %9.6f %9.6f %9.6f %9.6f );",adds[1],adds[2],adds[3],adds[4],adds[5],adds[6])}' )
+    fi
 	cp POSCAR.orig POSCAR
 	args=`echo ${Setstrain[*]}`
 	deform ${args}
-	echo "iretation=$i, present strain is $strain"
+	echo "iretation=$i, present strain is ${Setstrain[*]}"
 	$mpiexec > /dev/null 2>&1
+	if test -z "${mystrain[*]}";then
     grep " in kB" OUTCAR | tail -1 | awk -v col=$col -v strain=$strain '{print strain, -$col/10}' >> engineering_stress_strain.all
 	grep " in kB" OUTCAR | tail -1 | awk -v col=$col -v strain=$strain '
 	    {estress=-$col/10;
 			tstress=estress*(1+strain);
 			tstrain=log(1+strain);
 			print tstrain, tstress}' >> true_stress_strain.all
+		else
+        grep " in kB" OUTCAR | tail -1 | awk -v num=$i -v arr1="${mystrain[*]}" '
+		BEGIN{split(arr1, strain, " ");}
+		{for(i=3;i<=8;i++){
+			stress[i-2]=-$i/10}
+		m=0;n=0;s=0;
+		for(i=1;i<=6;i++){
+			m+=stress[i]*strain[i];
+			n+=strain[i];
+		    s+=strain[i]^2;}
+		stresstol=m/n;
+		straintol=sqrt(s)*num;
+        print straintol, stresstol;
+	    }' >> engineering_stress_strain.all
+        grep " in kB" OUTCAR | tail -1 | awk -v num=$i -v arr1="${mystrain[*]}" '
+		BEGIN{split(arr1, strain, " ");}
+		{for(i=3;i<=8;i++){
+			stress[i-2]=-$i/10}
+		m=0;n=0;s=0;
+		for(i=1;i<=6;i++){
+			m+=stress[i]*strain[i];
+			n+=strain[i];
+		    s+=strain[i]^2;}
+		stresstol=m/n;
+		straintol=sqrt(s)*num;
+		tstress=stresstol*(1+straintol);
+		tstrain=log(1+straintol);
+        print tstrain, tstress;
+	    }' >> true_stress_strain.all
+	fi
     conver=`grep "reached required" OUTCAR `
     #check whether present iretation converge
 	if [ -n "$conver" ]; then
