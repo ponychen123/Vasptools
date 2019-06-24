@@ -1,4 +1,7 @@
 #!/bin/bash
+#20190624 add support for any direction in cartesian axis space.for example,
+#if you set shear to "on", then script will set mystrain according to shear_direction
+#warning:the direction are based on cartesian direction!!!
 #20190611 add support for specified strain tensor.you need add six tensor component
 #in the mystrain,mystrain means step size of the apply strain.
 #20190528 add true stress strain curve and add PBS related parameters and fix some bugs
@@ -24,6 +27,10 @@ step=0.01         #set the step size
 num=2             #how much strain to apply
 mpiexec="vasp_std"
 mystrain=( )      #set step size of the strain, if  specified, only num value are used and other valuies are ommtied
+tensile="off"     #if on,then mystrain will be setted according to tensile_direction
+tensile_direction=(1 1 1)  #direction in cartesian axis space three axis are xx yy zz
+shear="off"       #if in,then mystrain will be setted according to shear_direction
+shear_direction=(1 1 1) #three axis are xy xz yz
 
 #mpiexe="mpirun -np 12 vasp_std"
 
@@ -76,6 +83,25 @@ unify
 cp POSCAR POSCAR.orig
 echo "starting calculation, hold on, drink coffee and sleeping..."
 
+#check wether tensile or shear key word ativazed
+if [ "$tensile" == "on" ];then
+	eval $(awk -v dirc="${tensile_direction[*]}" -v step=$step  '
+		BEGIN{split(dirc, add, " ");
+		s=sqrt(add[1]^2+add[2]^2+add[3]^2);
+     	t=s/step;
+	 	for(i=1;i<=3;i++){
+		 	add[i]=add[i]/t};
+    	printf("mystrain=( %9.6f %9.6f %9.6f 0.0 0.0 0.0 )\n",add[1],add[2],add[3])}')
+fi
+if [ "$shear" == "on" ];then
+	eval $(awk -v dirc="${shear_direction[*]}" -v step=$step  '
+		BEGIN{split(dirc, add, " ");
+		s=sqrt(add[1]^2+add[2]^2+add[3]^2);
+     	t=s/step;
+	 	for(i=1;i<=3;i++){
+		 	add[i]=add[i]/t};
+    	printf("mystrain=( 0.0 0.0 0.0 %9.6f %9.6f %9.6f )\n",add[1],add[2],add[3])}')
+fi
 #get the strain type
 for((i=0;i<=num;i++))
 do
@@ -177,4 +203,3 @@ echo "all the iretation have finished"
 #plot the curve, of course, just have a roughly look, maybe i will add a python script to have better curve
 gnuplot -e "set term dumb; plot 'engineering_stress_strain.all'  w l"
 #gnuplot -e "set term dumb; plot 'true_stress_strain.all' w l"
-
