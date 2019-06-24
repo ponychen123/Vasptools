@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 #this script split dos into specific format, basely need DOSCAR and sometimes need POSCAR
 #just run this script and it will tell you what to choose
+#attention,this script only support VASP version5.x and LORBIT = 11 if projection performed
 #ponychen
 #20190624
 #email:18709821294@outlook.com
