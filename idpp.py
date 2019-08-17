@@ -65,7 +65,7 @@ pos_b = np.array(tmp)
 for i in range(atom_num):
     for j in range(3):
         if(pos_a[i][j]-pos_b[i][j] > 0.5):
-            pos_a[i][i] -= 1
+            pos_a[i][j] -= 1
             if(pos_a[i][j]-pos_b[i][j] < -0.5):
                 pos_b[i][j] -= 1
 
