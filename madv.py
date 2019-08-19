@@ -109,7 +109,7 @@ for i in range(images):
         flag = 0 #agin initialize, this means this program default was there no atoms being closely
         advec = np.zeros([atom_num,3]) #a matrix to store the displacement vector of each atom
         itr += 1
-        print("now calculating the "+str(i+1)+" image, iteration "+str(i))
+        print("now calculating the "+str(i+1)+" image, iteration "+str(itr))
 
         for j in range(atom_num):
             for k in range(atom_num):
