@@ -4,6 +4,8 @@
 #author:ponychen
 #20190819
 #email:18709821294@outlook.com
+#20190820:add support for Cartesian format POSCAR, and add a XDATCAR output for visualizing the movie. remeber, all output
+#images are in Cartesian format! by ponychen
 
 import numpy as np
 import os
@@ -29,18 +31,28 @@ ini_data = fileopen.readlines()
 fileopen.close()
 
 #check whether atom are being frozen
-if (re.search('sel', ini_data[7], re.I)):
+if re.search('sel', ini_data[7], re.I):
     head = ini_data[:9]
     atom_num = sum(map(int, head[6].split()))
     ini_data = ini_data[9:9+atom_num]
     frozen = 1
-    head[8] = "Cartesian \n"
+    #check whether the coordination are in Cartesian format or direct format
+    if re.search('dir', head[8], re.I):
+        head[8] = "Cartesian \n"
+        direct = 1
+    else:
+        direct = 0
 else:
     head = ini_data[:8]
     atom_num = sum(map(int, head[6].split()))
     ini_data = ini_data[8:8+atom_num]
     frozen = 0
-    head[7] = "Cartesian \n"
+    #check whether the coordination are in cartesian format or direct format
+    if re.search('dir', head[7], re.I):
+        head[7] = "Cartesian \n"
+        direct = 1
+    else:
+        direct = 0
 
 tmp = []
 fix = []
@@ -77,6 +89,13 @@ tmp = []
 for i in fin_data:
     tmp.append(list(map(float, i.split()[0:3])))
 pos_b = np.array(tmp)
+
+#if the input POSCARs are in cartesian format, transfer them into direct format
+if not direct:
+    inverse_axis = np.linalg.inv(axis) #get the inverse matrix of axis
+    for i in range(atom_num):
+        pos_a[i] = np.dot(pos_a[i], inverse_axis)
+        pos_b[i] = np.dot(pos_b[i], inverse_axis)
 
 #correction of periodic boundary condition only support direct format
 for i in range(atom_num):
@@ -167,3 +186,27 @@ for i in range(images):
             line += "\n"
         f.write(line)
     f.close()
+
+#generate a XDATCAR watching the movie
+f = open("XDATCAR", "a+")
+f.writelines(head[:7])
+f.write("Cartesian configuration=    1\n")
+for i in range(atom_num):
+    line = map(str, pos_a[i])
+    line = " ".join(line)
+    line += "\n"
+    f.write(line)
+for i in range(images):
+    f.write("Cartesian configuration=     "+str(i+2)+"\n")
+    for j in range(atom_num):
+        line = map(str, pos_im[i,j])
+        line =  " ".join(line)
+        line += "\n"
+        f.write(line)
+f.write("Cartesian configuration=     "+str(images+2)+"\n")
+for i in range(atom_num):
+    line = map(str, pos_b[i])
+    line = " ".join(line)
+    line += "\n"
+    f.write(line)
+f.close()
