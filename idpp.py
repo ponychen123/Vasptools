@@ -6,6 +6,8 @@
 #bugs in three axiss of select frozen type
 #2019/06/15
 #email:18709821294@outlook.com
+#20190820:add support for POSCAR in cartesian format, and add output for a XDACAR watching movie of
+#transition path.All the output images are in cartesian format. by ponychen
 
 import numpy as np
 import os
@@ -26,11 +28,23 @@ if (re.search('sel', ini_data[7], re.I)):
     atom_num = sum(map(int, head[6].split()))
     ini_data = ini_data[9:9+atom_num]
     frozen = 1
+    #check whether the coordination are in cartesian format or direct format
+    if re.search('dir', head[8], re.I):
+        direct = 1
+    else:
+        head[8] = "Direct\n"
+        direct = 0
 else:
     head = ini_data[:8]
     atom_num = sum(map(int, head[6].split()))
     ini_data = ini_data[8:8+atom_num]
     frozen = 0
+    #check whether the coordination are in Cartesian format or direct format
+    if re.search('dir', head[7], re.I):
+        direct = 1
+    else:
+        head[7] = "Direct\n"
+        direct = 0
 
 tmp = []
 fix = []
@@ -60,6 +74,19 @@ tmp = []
 for i in fin_data:
     tmp.append(list(map(float, i.split()[0:3])))
 pos_b = np.array(tmp)
+
+#if input POSCARs are in cartesian format, then transfer them into direct format
+#firstly read the coordination matrix of three bias axis, not support for the case of ssNEB
+if not direct:
+    tmp = []
+    for i in range(2,5):
+        tmp.append(list(map(float, head[i].split())))
+    axis = np.array(tmp)
+    
+    inverse_axis = np.linalg.inv(axis) #get the inverse matrix of axis
+    for i in range(atom_num):
+        pos_a[i] = np.dot(pos_a[i], inverse_axis)
+        pos_b[i] = np.dot(pos_b[i], inverse_axis)
 
 #correction of periodic boundary condition only support direct format
 for i in range(atom_num):
@@ -168,3 +195,26 @@ for i in range(images):
         f.write(line)
     f.close()
 
+#generate a XDATCAR watching the movie
+f = open("XDATCAR", "a+")
+f.writelines(head[:7])
+f.write("Direct configuration=     1\n")
+for i in range(atom_num):
+    line = map(str, pos_a[i])
+    line = " ".join(line)
+    line += "\n"
+    f.write(line)
+for i in range(images):
+    f.write("Direct configuration=     "+str(i+2)+"\n")
+    for j in range(atom_num):
+        line = map(str, pos_im[i,j])
+        line = " ".join(line)
+        line += "\n"
+        f.write(line)
+f.write("Direct configuration=     "+str(images+2)+"\n")
+for i in range(atom_num):
+    line = map(str, pos_b[i])
+    line = " ".join(line)
+    line += "\n"
+    f.write(line)
+f.close()
