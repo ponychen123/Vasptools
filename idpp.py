@@ -8,19 +8,29 @@
 #email:18709821294@outlook.com
 #20190820:add support for POSCAR in cartesian format, and add output for a XDACAR watching movie of
 #transition path.All the output images are in cartesian format. by ponychen
+#20190822:add support reading user designed initial transition path, it should be careful that all
+#the images should in same format. by ponychen
 
 import numpy as np
 import os
 import re
 
-step_init = 0.0001
+#some default values, you may change it depend on your condition
+step_init = 0.0001  #step size, small in the case od direct format
+readfromexits = True #read transition path from user built, default False
+
 images = int(input("please input number of images: "))
-ininame = input("please input name of initial structure: ")
-finname = input("please input name of final structure: ")
+if not readfromexits:
+    ininame = input("please input name of initial structure: ")
+    finname = input("please input name of final structure: ")
 
 #read initial structures
-fileopen = open(ininame,'r')
+if readfromexits:
+    fileopen = open("00/POSCAR", 'r') #read from the initial structure of exsting transition path
+else:
+    fileopen = open(ininame,'r')
 ini_data = fileopen.readlines()
+fileopen.close()
 
 #check whether atom are being fronzen
 if (re.search('sel', ini_data[7], re.I)):
@@ -61,8 +71,16 @@ for i in range(atom_num):
 pos_a = np.array(tmp)
 
 #read final structure
-fileopen = open(finname, 'r')
+if readfromexits:
+    if images < 9:
+        filename = "0"+str(images+1)+"/POSCAR"
+    else:
+        filename = str(images+1)+"/POSCAR"
+    fileopen = open(filename, "r")
+else:
+    fileopen = open(finname, 'r')
 fin_data = fileopen.readlines()
+fileopen.close()
 
 #keep frozen condition same with initial structure
 if (frozen == 1):
@@ -75,6 +93,26 @@ for i in fin_data:
     tmp.append(list(map(float, i.split()[0:3])))
 pos_b = np.array(tmp)
 
+#if read from existing path, then read all the images to pos_im
+if readfromexits:
+    pos_im = np.zeros([images, atom_num, 3])
+    for i in range(images):
+        if i+1 < 10:
+            filename = "0"+str(i+1)+"/POSCAR"
+        else:
+            filename = str(i+1)+"/POSCAR"
+        fileopen = open(filename, "r")
+        image_data = fileopen.readlines()
+        fileopen.close()
+        if frozen == 1:
+            image_data = image_data[9:9+atom_num]
+        else:
+            image_data = image_data[8:8+atom_num]
+        tmp = []
+        for j in image_data:
+            tmp.append(list(map(float, j.split()[0:3])))
+        pos_im[i] = np.array(tmp)
+
 #if input POSCARs are in cartesian format, then transfer them into direct format
 #firstly read the coordination matrix of three bias axis, not support for the case of ssNEB
 if not direct:
@@ -84,15 +122,24 @@ if not direct:
     axis = np.array(tmp)
     
     inverse_axis = np.linalg.inv(axis) #get the inverse matrix of axis
-    for i in range(atom_num):
-        pos_a[i] = np.dot(pos_a[i], inverse_axis)
-        pos_b[i] = np.dot(pos_b[i], inverse_axis)
+    if readfromexits:
+        for i in range(atom_num):
+            pos_a[i] = np.dot(pos_a[i], inverse_axis)
+            pos_b[i] = np.dot(pos_b[i], inverse_axis)
+        for i in range(images):
+            for j in range(atom_num):
+                pos_im[i,j] = np.dot(pos_im[i,j], inverse_axis)
+    else:
+        for i in range(atom_num):
+            pos_a[i] = np.dot(pos_a[i], inverse_axis)
+            pos_b[i] = np.dot(pos_b[i], inverse_axis)
 
 #correction of periodic boundary condition only support direct format
-for i in range(atom_num):
-    for j in range(3):
-        if(pos_a[i][j]-pos_b[i][j] > 0.5):
-            pos_a[i][j] -= 1
+if not readfromexits:
+    for i in range(atom_num):
+        for j in range(3):
+            if(pos_a[i][j]-pos_b[i][j] > 0.5):
+                pos_a[i][j] -= 1
             if(pos_a[i][j]-pos_b[i][j] < -0.5):
                 pos_b[i][j] -= 1
 
@@ -110,11 +157,19 @@ for i in range(atom_num):
         dist_b[i,j] = np.sqrt(tmp_b)
 
 dist_im = np.zeros([images, atom_num, atom_num]) #3D distance matrix
-pos_im = np.zeros([images, atom_num, 3])  #3D position matrix
-
-for i in range(images):           #linear interpolation
-    dist_im[i] = dist_a+(i+1.0)*(dist_b-dist_a)/(images+1.0)
-    pos_im[i] = pos_a+(i+1.0)*(pos_b-pos_a)/(images+1.0)
+if readfromexits:
+    for  i in range(images):
+        for j in range(atom_num):
+            for k in range(atom_num):
+                tmp = 0
+                for m in range(3):
+                    tmp += (pos_im[i,j,m]-pos_im[i,k,m])**2
+                dist_im[i,j,k] = np.sqrt(tmp)
+else:
+    pos_im = np.zeros([images, atom_num, 3])  #3D position matrix
+    for i in range(images):           #linear interpolation
+        dist_im[i] = dist_a+(i+1.0)*(dist_b-dist_a)/(images+1.0)
+        pos_im[i] = pos_a+(i+1.0)*(pos_b-pos_a)/(images+1.0)
 
 #optimization using steepest descent method
 pos_tmp = np.zeros([atom_num, 3])
@@ -171,29 +226,79 @@ if (images + 1 < 10):
     num = '0' + str(images +1)
 else:
     num = str(images +1)
-os.system(" mkdir 00 ")
-os.system(" cp " + ininame + " 00/POSCAR ")
-os.system(" mkdir " + num)
-os.system(" cp  " + finname + " " + num + "/POSCAR")
-for i in range(images):
-    if (i + 1 < 10):
-        num = '0' + str(i+1)
-    else:
-        num = str(i+1)
-    os.system("mkdir " + num)
-    data = pos_im[i].tolist()
-    filename = num + "/POSCAR"
-    f = open(filename, "a+")
+
+if not readfromexits:
+    os.system("mkdir 00")
+    f = open("00/POSCAR", "a+")
     f.writelines(head)
-    for j in range(atom_num):
-        line = map(str, data[j])
+    data = pos_a.tolist()
+    for i in range(atom_num):
+        line = map(str, data[i])
         line = " ".join(line)
         if frozen == 1:
-            line = line + "    " + str(fix[j][0]) + "    " + str(fix[j][1]) + "    " + str(fix[j][2]) + "\n"       
+            line = line + "    " +fix[i][0]+fix[i][1]+fix[i][2]+"\n"
         else:
-            line = line + "\n"
+            line += "\n"
         f.write(line)
     f.close()
+    os.system("mkdir "+num)
+    filename = str(num)+"/POSCAR"
+    f = open(filename, "a+")
+    f.writelines(head)
+    data = pos_b.tolist()
+    for i in range(atom_num):
+        line = map(str, data[i])
+        line = " ".join(line)
+        if frozen == 1:
+            line = line + "    " +fix[i][0]+fix[i][1]+fix[i][2]+"\n"
+        else:
+            line += "\n"
+        f.write(line)
+    f.close()
+    for i in range(images):
+        if i+1<10:
+            num = "0"+str(i+1)
+        else:
+            num = str(i+1)
+        os.system("mkdir "+num)
+        data = pos_im[i].tolist()
+        filename = num + "/POSCAR"
+        f = open(filename, "a+")
+        f.writelines(head)
+        for j in range(atom_num):
+            line = map(str, data[j])
+            line = " ".join(line)
+            if frozen == 1:
+                line = line + "    " + fix[j][0] +fix[j][1] +fix[j][2] + "\n"
+            else:
+                line += "\n"
+            f.write(line)
+        f.close()
+else:
+    os.system("mkdir new")
+    os.system("mkdir new/00")
+    os.system("cp 00/POSCAR  new/00/POSCAR ")
+    os.system("mkdir new/"+num)
+    os.system("cp "+num+"/POSCAR"+" new/"+num+"/POSCAR")
+    for i in range(images):
+        if i+1<10:
+            num = "new/"+"0"+str(i+1)
+        else:
+            num = "new/"+str(i+1)
+        os.system("mkdir "+num)
+        data = pos_im[i].tolist()
+        filename = num + "/POSCAR"
+        f = open(filename, "a+")
+        f.writelines(head)
+        for j in range(atom_num):
+            line = map(str, data[j])
+            line = " ".join(line)
+            if frozen == 1:
+                line = line + "    " + fix[j][0] +fix[j][1] +fix[j][2] + "\n"
+            else:
+                line += "\n"
+            f.write(line)
+        f.close()
 
 #generate a XDATCAR watching the movie
 f = open("XDATCAR", "a+")
