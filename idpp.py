@@ -17,7 +17,7 @@ import re
 
 #some default values, you may change it depend on your condition
 step_init = 0.0001  #step size, small in the case od direct format
-readfromexits = True #read transition path from user built, default False
+readfromexits = False #read transition path from user built, default False
 
 images = int(input("please input number of images: "))
 if not readfromexits:
