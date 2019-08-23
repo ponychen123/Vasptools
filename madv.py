@@ -66,7 +66,7 @@ fixx = [0, 0, 0]
 for i in range(atom_num):
     tmp.append(list(map(float, ini_data[i].split()[0:3])))
     if frozen == 1:
-        for i in range(3):
+        for j in range(3):
             if ini_data[i].split()[j+3] == "F":
                 fixx[j] = "F"
             else:
@@ -190,8 +190,8 @@ for i in range(images):
         if frozen == 1:
             for j in range(atom_num):
                 for k in range(3):
-                    if fix[j,k] == "T":
-                        pos_im[i,j,k] += step_init*advec[j.k]
+                    if fix[j][k] == "T":
+                        pos_im[i,j,k] += step_init*advec[j,k]
         else:
             for j in range(atom_num):
                 pos_im[i,j] += step_init*advec[j]
