@@ -1,4 +1,5 @@
 #!/bin/bash
+#20200413 delete fixs of 20190624 and change something the last vesion. bye bye.
 #20190624 add support for any direction in cartesian axis space.for example,
 #if you set shear to "on", then script will set mystrain according to shear_direction
 #warning:the direction are based on cartesian direction!!!
@@ -14,27 +15,33 @@
 #ponychen 2019/05/23
 #email: 18709821294@outlook.com
 
-#PBS related parameters
+#submission scripts related parameters
+
+##PBS related parameters
 ##PBS -L nodes=6:ppn=12
 ##PBS -L walltime=3:00:00
 ##PBS -V
 ##PBS -N test
 
+##SBATCH related parameters
+##SBATCH -p v3_64
+##SBATCH -N 2
+##SBATCH -n 48
+
 #change following parameters as you like
-orientation="XX"  #set which type of strain
+orientation="XX"  #set which type of strain, you should set mystrain blank!!!
 initial=0.0       #set the initial strain
 step=0.01         #set the step size
 num=2             #how much strain to apply
-mpiexec="vasp_std"
-mystrain=( )      #set step size of the strain, if  specified, only num value are used and other valuies are ommtied
-tensile="off"     #if on,then mystrain will be setted according to tensile_direction
-tensile_direction=(1 1 1)  #direction in cartesian axis space three axis are xx yy zz
-shear="off"       #if in,then mystrain will be setted according to shear_direction
-shear_direction=(1 1 1) #three axis are xy xz yz
-
-#mpiexe="mpirun -np 12 vasp_std"
+mpiexec="vasp_std" #command to run vasp, modified by yourself
+#mpiexec="mpirun -np 12 vasp_std"
+#mpiexec="yhrun vasp_std"
+mystrain=(1 0 0 0 0 0) #set all elements the strain tensor XX YY ZZ XY YZ XZ, if specified, orientation value is ommtied.
 
 #do not change following codes unless you know what you are doing
+
+#some functions
+
 deform(){
 #this function apply the specific strain on cell
 local newstrain
@@ -77,32 +84,32 @@ unify(){
 	sed -i "5c${newaxis[5]}" POSCAR
 }
 
+#delete old output files
+
+if [ ! -f "./engineering_stress_strain.all" ];then
+	echo "engineering_stress_strain.all is not exsited"
+else
+	echo "rm the old engineering_stress_strain.all"
+	rm ./engineering_stress_strain.all
+fi
+if [ ! -f "./true_stress_strain.all" ];then
+	echo "true_stress_strain.all is not exsited"
+else
+	echo "rm the old true_stress_strain.all"
+	rm ./true_stress_strain.all
+fi
+
 #unify the prefactor of POSCAR
+
 unify
+
+#start calculation
 
 cp POSCAR POSCAR.orig
 echo "starting calculation, hold on, drink coffee and sleeping..."
 
-#check wether tensile or shear key word ativazed
-if [ "$tensile" == "on" ];then
-	eval $(awk -v dirc="${tensile_direction[*]}" -v step=$step  '
-		BEGIN{split(dirc, add, " ");
-		s=sqrt(add[1]^2+add[2]^2+add[3]^2);
-     	t=s/step;
-	 	for(i=1;i<=3;i++){
-		 	add[i]=add[i]/t};
-    	printf("mystrain=( %9.6f %9.6f %9.6f 0.0 0.0 0.0 )\n",add[1],add[2],add[3])}')
-fi
-if [ "$shear" == "on" ];then
-	eval $(awk -v dirc="${shear_direction[*]}" -v step=$step  '
-		BEGIN{split(dirc, add, " ");
-		s=sqrt(add[1]^2+add[2]^2+add[3]^2);
-     	t=s/step;
-	 	for(i=1;i<=3;i++){
-		 	add[i]=add[i]/t};
-    	printf("mystrain=( 0.0 0.0 0.0 %9.6f %9.6f %9.6f )\n",add[1],add[2],add[3])}')
-fi
 #get the strain type
+
 for((i=0;i<=num;i++))
 do
     if  test -z "${mystrain[*]}" ;then
@@ -141,17 +148,18 @@ do
 			;;
 	esac
     else
-    eval $(awk -v arr1="${mystrain[*]}" -v i=$i '
+    eval $(awk -v arr1="${mystrain[*]}" -v i=$i -v s=$step '
 	BEGIN {split(arr1, adds, " ");
           for(j=1;j<=6;j++){
-          adds[j]=0.0+adds[j]*i;}
+          adds[j]=0.0+adds[j]*i*s;}
           printf("Setstrain=( %9.6f %9.6f %9.6f %9.6f %9.6f %9.6f );",adds[1],adds[2],adds[3],adds[4],adds[5],adds[6])}' )
     fi
 	cp POSCAR.orig POSCAR
 	args=`echo ${Setstrain[*]}`
 	deform ${args}
-	echo "iretation=$i, present strain is ${Setstrain[*]}"
+	echo "iretation=$i, present applied strain is ${Setstrain[*]}"
 	$mpiexec > /dev/null 2>&1
+	#get the result
 	if test -z "${mystrain[*]}";then
     grep " in kB" OUTCAR | tail -1 | awk -v col=$col -v strain=$strain '{print strain, -$col/10}' >> engineering_stress_strain.all
 	grep " in kB" OUTCAR | tail -1 | awk -v col=$col -v strain=$strain '
@@ -160,28 +168,28 @@ do
 			tstrain=log(1+strain);
 			print tstrain, tstress}' >> true_stress_strain.all
 		else
-        grep " in kB" OUTCAR | tail -1 | awk -v num=$i -v arr1="${mystrain[*]}" '
+        grep " in kB" OUTCAR | tail -1 | awk -v num=$i -v arr1="${mystrain[*]}" -v step=$step '
 		BEGIN{split(arr1, strain, " ");}
 		{for(i=3;i<=8;i++){
 			stress[i-2]=-$i/10}
 		m=0;n=0;s=0;
 		for(i=1;i<=6;i++){
-			m+=stress[i]*strain[i];
-			n+=strain[i];
-		    s+=strain[i]^2;}
+			m+=stress[i]*strain[i]*step;
+			n+=strain[i]*step;
+			s+=(strain[i]*step)^2;}
 		stresstol=m/n;
 		straintol=sqrt(s)*num;
         print straintol, stresstol;
 	    }' >> engineering_stress_strain.all
-        grep " in kB" OUTCAR | tail -1 | awk -v num=$i -v arr1="${mystrain[*]}" '
+        grep " in kB" OUTCAR | tail -1 | awk -v num=$i -v arr1="${mystrain[*]}" -v step=$step '
 		BEGIN{split(arr1, strain, " ");}
 		{for(i=3;i<=8;i++){
 			stress[i-2]=-$i/10}
 		m=0;n=0;s=0;
 		for(i=1;i<=6;i++){
-			m+=stress[i]*strain[i];
-			n+=strain[i];
-		    s+=strain[i]^2;}
+			m+=stress[i]*strain[i]*step;
+			n+=strain[i]*step;
+			s+=(strain[i]*step)^2;}
 		stresstol=m/n;
 		straintol=sqrt(s)*num;
 		tstress=stresstol*(1+straintol);
@@ -199,7 +207,8 @@ do
 	fi
 done
 	
-echo "all the iretation have finished"
+echo "all the iretation have finished, the unit of stress is GPa!"
+
 #plot the curve, of course, just have a roughly look, maybe i will add a python script to have better curve
 gnuplot -e "set term dumb; plot 'engineering_stress_strain.all'  w l"
 #gnuplot -e "set term dumb; plot 'true_stress_strain.all' w l"
