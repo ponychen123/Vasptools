@@ -1,12 +1,5 @@
 #!/bin/bash
-#20200413 delete fixs of 20190624 and change something the last vesion. bye bye.
-#20190624 add support for any direction in cartesian axis space.for example,
-#if you set shear to "on", then script will set mystrain according to shear_direction
-#warning:the direction are based on cartesian direction!!!
-#20190611 add support for specified strain tensor.you need add six tensor component
-#in the mystrain,mystrain means step size of the apply strain.
-#20190528 add true stress strain curve and add PBS related parameters and fix some bugs
-#20190524 fix a bug
+#20200414 final version.
 #a simple bash shell to perform ideal tansile or shear process,and get the
 #stress-strain curve
 #usage:prepare needed file for VASP, set ISIF=2, run this script, use stress_strain to plot curve
@@ -30,13 +23,13 @@
 
 #change following parameters as you like
 orientation="XX"  #set which type of strain, you should set mystrain blank!!!
-initial=0.0       #set the initial strain
+initial=0.00       #set the initial strain
 step=0.01         #set the step size
-num=2             #how much strain to apply
+num=10             #how much strain to apply
 mpiexec="vasp_std" #command to run vasp, modified by yourself
 #mpiexec="mpirun -np 12 vasp_std"
 #mpiexec="yhrun vasp_std"
-mystrain=(1 0 0 0 0 0) #set all elements the strain tensor XX YY ZZ XY YZ XZ, if specified, orientation value is ommtied.
+mystrain=() #set all elements the strain tensor XX YY ZZ XY YZ XZ, if specified, orientation value is ommtied.
 
 #do not change following codes unless you know what you are doing
 
@@ -84,28 +77,40 @@ unify(){
 	sed -i "5c${newaxis[5]}" POSCAR
 }
 
+# check whether new starting or restarting, added by xuefei Liu
+if [ -f "./POSCAR.orig" ];then
+	echo "Restarting !!"
+	recal=true
+else
+        cp POSCAR POSCAR.orig
+	echo "New starting !!"
+	#unify the prefactor of POSCAR
+	echo "unify the prefactor of POSCAR!"
+	unify
+	recal=false
+
+fi
+
 #delete old output files
-
-if [ ! -f "./engineering_stress_strain.all" ];then
-	echo "engineering_stress_strain.all is not exsited"
+if $recal;then
+	echo "restarting..we will not delete the old stress_strain.all files."
 else
-	echo "rm the old engineering_stress_strain.all"
-	rm ./engineering_stress_strain.all
+        if [ ! -f "./engineering_stress_strain.all" ];then
+	        echo "engineering_stress_strain.all is not exsited"
+        else
+	        echo "rm the old engineering_stress_strain.all"
+	        rm ./engineering_stress_strain.all
+        fi
+        if [ ! -f "./true_stress_strain.all" ];then
+	        echo "true_stress_strain.all is not exsited"
+        else
+	        echo "rm the old true_stress_strain.all"
+	        rm ./true_stress_strain.all
+        fi
 fi
-if [ ! -f "./true_stress_strain.all" ];then
-	echo "true_stress_strain.all is not exsited"
-else
-	echo "rm the old true_stress_strain.all"
-	rm ./true_stress_strain.all
-fi
-
-#unify the prefactor of POSCAR
-
-unify
 
 #start calculation
 
-cp POSCAR POSCAR.orig
 echo "starting calculation, hold on, drink coffee and sleeping..."
 
 #get the strain type
@@ -209,6 +214,7 @@ done
 	
 echo "all the iretation have finished, the unit of stress is GPa!"
 
-#plot the curve, of course, just have a roughly look, maybe i will add a python script to have better curve
+#plot the curve, of course, just have a roughly look
+
 gnuplot -e "set term dumb; plot 'engineering_stress_strain.all'  w l"
 #gnuplot -e "set term dumb; plot 'true_stress_strain.all' w l"
