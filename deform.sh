@@ -1,7 +1,7 @@
 #!/bin/bash
 #2020/04/25 fix a definition of shear strain
 #20190524 fix a bug
-#a simple bash shell to add specific strain on the cell
+#a simple bash shell to add specific strain on the Direct coordination
 #warning: you should use the direct coordition 
 #ponychen 2019/05/22
 

@@ -20,7 +20,10 @@ eval $(awk -v arr1="${newstrain[*]}" '
            BEGIN{split(arr1, adds, " ");
 	             adds[1]+=1;
 			     adds[2]+=1;
-			     adds[3]+=1;}
+			     adds[3]+=1;
+			     adds[4]/=2;
+			     adds[5]/=2;
+			     adds[6]/=2;}
 		   NR>=3 && NR<=5 {r0[NR]=$1;s0[NR]=$2;t0[NR]=$3}
 		   END{r1[3]=adds[1]*r0[3]+adds[4]*r0[4]+adds[5]*r0[5];
 		       s1[3]=adds[1]*s0[3]+adds[4]*s0[4]+adds[5]*s0[5];
