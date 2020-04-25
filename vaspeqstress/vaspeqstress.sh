@@ -17,10 +17,18 @@
 #2019/04/18
 #2019/05/13 now ponychen write this in bash shell
 #2019/05/17 add PBS columns
+
+# PBS related parameters
 ##PBS -L nodes=6:ppn=12
 ##PBS -L walltime=3:00:00
 ##PBS -V
 ##PBS -N test
+
+# SBATCH related parameters
+##SBATCH -p paratera
+##SBATCH -N 1
+##SBATCH -n 24
+
 #Set the target pressure tensor(xx, yy, zz, xy, yz, zx) in Kbar. Note pressure
 #= -stress in VASP
 Setpress=( 0.0 100.0 0.0 0.0 0.0 0.0 )
