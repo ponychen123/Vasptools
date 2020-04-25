@@ -1,11 +1,11 @@
 #!/bin/bash
-#20200414 final version.
+#20200425 fix a bug
 #a simple bash shell to perform ideal tansile or shear process on the Cartesian coordination,
 #and get the stress-strain curve
 #usage:prepare needed file for VASP, set ISIF=2, run this script, use stress_strain to plot curve
 #warning: you should use the direct coordition 
 #warning: your cell should better to be orthogonallty
-#ponychen 2019/05/23
+#ponychen 2020/04/25
 #email: 18709821294@outlook.com
 
 #submission scripts related parameters
@@ -29,7 +29,7 @@ num=10             #how much strain to apply
 mpiexec="vasp_std" #command to run vasp, modified by yourself
 #mpiexec="mpirun -np 12 vasp_std"
 #mpiexec="yhrun vasp_std"
-mystrain=() #set all elements the strain tensor XX YY ZZ XY YZ XZ, if specified, orientation value is ommtied.
+mystrain=() #set all elements the strain tensor XX YY ZZ XY XZ YZ, if specified, orientation value is ommtied.
 
 #do not change following codes unless you know what you are doing
 
@@ -156,10 +156,10 @@ do
 			;;
 	esac
     else
-    eval $(awk -v arr1="${mystrain[*]}" -v i=$i -v s=$step '
+    eval $(awk -v arr1="${mystrain[*]}" -v i=$i -v s=$step -v ini=$initial'
 	BEGIN {split(arr1, adds, " ");
           for(j=1;j<=6;j++){
-          adds[j]=0.0+adds[j]*i*s;}
+          adds[j]=ini+adds[j]*i*s;}
           printf("Setstrain=( %9.6f %9.6f %9.6f %9.6f %9.6f %9.6f );",adds[1],adds[2],adds[3],adds[4],adds[5],adds[6])}' )
     fi
 	cp POSCAR.orig POSCAR
