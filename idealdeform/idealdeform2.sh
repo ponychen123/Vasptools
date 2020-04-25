@@ -1,6 +1,6 @@
 #!/bin/bash
 #20200414 final version.
-#a simple bash shell to perform ideal tansile or shear process on the direct coordination,
+#a simple bash shell to perform ideal tansile or shear process on the Cartesian coordination,
 #and get the stress-strain curve
 #usage:prepare needed file for VASP, set ISIF=2, run this script, use stress_strain to plot curve
 #warning: you should use the direct coordition 
@@ -49,15 +49,15 @@ eval $(awk -v arr1="${newstrain[*]}" '
 			     adds[5]/=2;
 			     adds[6]/=2;}
 		   NR>=3 && NR<=5 {r0[NR]=$1;s0[NR]=$2;t0[NR]=$3}
-		   END{r1[3]=adds[1]*r0[3]+adds[4]*r0[4]+adds[5]*r0[5];
-		       s1[3]=adds[1]*s0[3]+adds[4]*s0[4]+adds[5]*s0[5];
-			   t1[3]=adds[1]*t0[3]+adds[4]*t0[4]+adds[5]*t0[5];
-			   r1[4]=adds[4]*r0[3]+adds[2]*r0[4]+adds[6]*r0[5];
-			   s1[4]=adds[4]*s0[3]+adds[2]*s0[4]+adds[6]*s0[5];
-			   t1[4]=adds[4]*t0[3]+adds[2]*t0[4]+adds[6]*t0[5];
-			   r1[5]=adds[5]*r0[3]+adds[6]*r0[4]+adds[3]*r0[5];
-			   s1[5]=adds[5]*s0[3]+adds[6]*s0[4]+adds[3]*s0[5];
-			   t1[5]=adds[5]*t0[3]+adds[6]*t0[4]+adds[3]*t0[5];
+		   END{r1[3]=r0[3]*adds[1]+s0[3]*adds[4]+t0[3]*adds[5];
+		       s1[3]=r0[3]*adds[4]+s0[3]*adds[2]+t0[3]*adds[6];
+			   t1[3]=r0[3]*adds[5]+s0[3]*adds[6]+t0[3]*adds[3];
+			   r1[4]=r0[4]*adds[1]+s0[4]*adds[4]+t0[4]*adds[5];
+			   s1[4]=r0[4]*adds[4]+s0[4]*adds[2]+t0[4]*adds[6];
+			   t1[4]=r0[4]*adds[5]+s0[4]*adds[6]+t0[4]*adds[3];
+			   r1[5]=r0[5]*adds[1]+s0[5]*adds[4]+t0[5]*adds[5];
+			   s1[5]=r0[5]*adds[4]+s0[5]*adds[2]+t0[5]*adds[6];
+			   t1[5]=r0[5]*adds[5]+s0[5]*adds[6]+t0[5]*adds[3];
 			   for(i=3;i<=5;i++){
 				   printf("newpos[%s]=\" %9.6f %9.6f %9.6f\n\";",i,r1[i],s1[i],t1[i])}
 			   }' POSCAR)			   
