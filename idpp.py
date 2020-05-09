@@ -19,7 +19,7 @@ import re
 step_init = 0.0001  #step size, small in the case od direct format
 readfromexits = False #read transition path from user built, default False
 conver = 10 #converge thershould
-linear = false #just to do linear interpolation only
+linear = False #just to do linear interpolation only
 
 images = int(input("please input number of images: "))
 if not readfromexits:
