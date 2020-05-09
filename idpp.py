@@ -18,6 +18,8 @@ import re
 #some default values, you may change it depend on your condition
 step_init = 0.0001  #step size, small in the case od direct format
 readfromexits = False #read transition path from user built, default False
+conver = 10 #converge thershould
+linear = false #just to do linear interpolation only
 
 images = int(input("please input number of images: "))
 if not readfromexits:
@@ -170,56 +172,56 @@ else:
     for i in range(images):           #linear interpolation
         dist_im[i] = dist_a+(i+1.0)*(dist_b-dist_a)/(images+1.0)
         pos_im[i] = pos_a+(i+1.0)*(pos_b-pos_a)/(images+1.0)
+if not linear:
+    #optimization using steepest descent method
+    pos_tmp = np.zeros([atom_num, 3])
+    dist_tmp = np.zeros([atom_num, atom_num])
+    s0 = np.zeros(images)
+    s1 = np.zeros(images)
+    flag = np.zeros(images)
 
-#optimization using steepest descent method
-pos_tmp = np.zeros([atom_num, 3])
-dist_tmp = np.zeros([atom_num, atom_num])
-s0 = np.zeros(images)
-s1 = np.zeros(images)
-flag = np.zeros(images)
+    for im in range(images):
+        if (flag[im] == 1): #avoid repetition
+            continue
+        step = step_init
+        print("generate image " + str(im+1))
+        loop = 0
+        while(1):
+            for i in range(atom_num): #get the distant matrix for each image
+                for j in range(atom_num):
+                    if (i == j):
+                        dist_tmp[i, j] = 10
+                    else:
+                        tmp = 0
+                        for k in range(3):
+                            tmp += (pos_im[im][i][k]-pos_im[im][j][k])**2
+                        dist_tmp[i,j] = np.sqrt(tmp)
 
-for im in range(images):
-    if (flag[im] == 1): #avoid repetition
-        continue
-    step = step_init
-    print("generate image " + str(im+1))
-    loop = 0
-    while(1):
-        for i in range(atom_num): #get the distant matrix for each image
-            for j in range(atom_num):
-                if (i == j):
-                    dist_tmp[i, j] = 10
-                else:
-                    tmp = 0
-                    for k in range(3):
-                        tmp += (pos_im[im][i][k]-pos_im[im][j][k])**2
-                    dist_tmp[i,j] = np.sqrt(tmp)
+            for i in range(atom_num):
+                for sigma in range(3):
+                    grad = 0
+                    if (frozen == 1 and fix[i][sigma] == "T") or frozen == 0:
+                        for j in range(atom_num): #get the partial differencial of Sidpp
+                            if (j != i): #get the vitual force
+                                grad += 2*(dist_im[im][i][j]-dist_tmp[i][j])*(pos_im[im][i][sigma]-pos_im[im][j][sigma])\
+                                        *(2*dist_im[im][i][j]-dist_tmp[i][j])/dist_tmp[i, j]**5
+                    pos_tmp[i][sigma] = pos_im[im][i][sigma] + step*grad
+            pos_im[im] = pos_tmp
 
-        for i in range(atom_num):
-            for sigma in range(3):
-                grad = 0
-                if (frozen == 1 and fix[i][sigma] == "T") or frozen == 0:
-                    for j in range(atom_num): #get the partial differencial of Sidpp
-                        if (j != i): #get the vitual force
-                            grad += 2*(dist_im[im][i][j]-dist_tmp[i][j])*(pos_im[im][i][sigma]-pos_im[im][j][sigma])\
-                                    *(2*dist_im[im][i][j]-dist_tmp[i][j])/dist_tmp[i, j]**5
-                pos_tmp[i][sigma] = pos_im[im][i][sigma] + step*grad
-        pos_im[im] = pos_tmp
-
-        #judge convergence
-        s0[im] = s1[im]
-        s1[im] = 0
-        for i in range(atom_num):
-            for j in range(i):
-                s1[im] += (dist_im[im][i][j]-dist_tmp[i][j])**2/dist_tmp[i][j]**4
-        loop += 1
-        print("loop: " + str(loop))
-        if (abs(s0[im]-s1[im]) < 0.01):
-            print("image "+ str(im+1) +" converge!!!")
-            flag[im] = 1
-            break
-        if (loop > 1 and s1[im] > s0[im]): #decrease step size when cross hollow
-            step = step/3
+            #judge convergence
+            s0[im] = s1[im]
+            s1[im] = 0
+            for i in range(atom_num):
+                for j in range(i):
+                    s1[im] += (dist_im[im][i][j]-dist_tmp[i][j])**2/dist_tmp[i][j]**4
+            loop += 1
+            print("loop: " + str(loop))
+            if (abs(s0[im]-s1[im]) < conver):
+                print("image "+ str(im+1) +" converge!!!")
+                flag[im] = 1
+                break
+            if (loop > 1 and s1[im] > s0[im]): #decrease step size when cross hollow
+                step = step/3
 
 #mkdir and generate poscar file for neb
 if (images + 1 < 10):
@@ -228,8 +230,8 @@ else:
     num = str(images +1)
 
 if not readfromexits:
-    os.system("mkdir 00")
-    f = open("00/POSCAR", "a+")
+    os.system("mkdir -p 00")
+    f = open("00/POSCAR", "w")
     f.writelines(head)
     data = pos_a.tolist()
     for i in range(atom_num):
@@ -241,9 +243,9 @@ if not readfromexits:
             line += "\n"
         f.write(line)
     f.close()
-    os.system("mkdir "+num)
+    os.system("mkdir -p "+num)
     filename = str(num)+"/POSCAR"
-    f = open(filename, "a+")
+    f = open(filename, "w")
     f.writelines(head)
     data = pos_b.tolist()
     for i in range(atom_num):
@@ -260,10 +262,10 @@ if not readfromexits:
             num = "0"+str(i+1)
         else:
             num = str(i+1)
-        os.system("mkdir "+num)
+        os.system("mkdir -p "+num)
         data = pos_im[i].tolist()
         filename = num + "/POSCAR"
-        f = open(filename, "a+")
+        f = open(filename, "w")
         f.writelines(head)
         for j in range(atom_num):
             line = map(str, data[j])
@@ -301,7 +303,7 @@ else:
         f.close()
 
 #generate a XDATCAR watching the movie
-f = open("XDATCAR", "a+")
+f = open("XDATCAR", "w")
 f.writelines(head[:7])
 f.write("Direct configuration=     1\n")
 for i in range(atom_num):
