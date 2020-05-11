@@ -16,4 +16,26 @@ deform.sh用于向POSCAR文件施加变形，seriesdeform.sh用于施加系列�
 ![image](https://github.com/ponychen123/Vasptools/blob/master/image/4.png)
 + 脚本运行完后，工程应力应变曲线的数据会被保存到engineeringstressstrain.all中，真实应力应变曲线的数据会被保存到truestressstrain.all中。如果某一步中出现无法收敛的情况，程序会停止。你应该在OUTCAR中查找原因，并从当前阶段继续运算。
 + 如果要续算，只需要把initial值改成新的数值接着算就可以，程序会自动处理相关变化。
+## idpp.py
+idpp.py脚本采用IDPP方法进行非线性插值优化NEB计算的初始路径。
+本脚本有两种用法：
+1. 直接运行。根据提示依次输入镜像数目，初始结构文件名字，末尾结构文件名字，即可
+2. 运行idpp.py的同时加上三个形参，分别是镜像数目，初始结构文件名字，末尾结构文件名字，这样可以更快。例如：
+```
+./idpp.py 7 ini.vasp fin.vasp
+```
+程序会输出每个循环的已经收敛的镜像，所有镜像均收敛即退出循环。
+![image](https://github.com/ponychen123/Vasptools/blob/master/image/5.png)
+idpp.py中可以更改一些default参数：
++ step_init：步长。单位为埃米。
++ conver：收敛门槛。0.1足够了
++ linear：如果设成True，脚本将只进行线性插值。
++ lneb：打开NEB。NEB方法可以有效防止原子跑的太散。默认打开
++ spring：NEB中的弹性系数。因为用的是vitual force，这里的弹性系数没有量纲，充当调整弹簧力和原子力在总力中的比例。
++ scale：缩放系数。当体系靠近minimum时将step size按照scale缩放防止在minimum处来回震荡
++ maxiter：最大循环数。超出了还收敛不了我也无能为力了。
++ readfromexits：默认的IDPP是以线性插值作为参考。如果该值为真，你将自己构建参考。自己建好00 01 02 文件夹，每个文件夹放好POSCAR就可以。运行的时候必须用传递形参的方式，只需要镜像数一个参数。
+
+
+
 
