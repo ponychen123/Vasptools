@@ -22,6 +22,7 @@ import re
 import sys
 
 #some default values, you may change it depend on your condition
+<<<<<<< HEAD
 step_init = 0.01  # step size, unit, Angstrom
 readfromexits = False # read transition path from user built, default False
 conver = 0.1 # converge thershould
@@ -29,6 +30,12 @@ linear = False #just to do linear interpolation only
 lneb = True # whther to open NEB
 spring = 1 # spring constant, indead it means the fraction of spring force
 scale = 3 # scale constant to decrease step size when crossing hollow
+=======
+step_init = 0.0001  #step size, small in the case od direct format
+readfromexits = False #read transition path from user built, default False
+conver = 10 #converge thershould
+linear = False #just to do linear interpolation only
+>>>>>>> refs/remotes/origin/master
 
 #input filename and number of images
 if sys.argv[1]:
@@ -173,6 +180,7 @@ else:
 if not linear:
     #optimization using steepest descent method
     pos_tmp = np.zeros([atom_num, 3])
+<<<<<<< HEAD
     dist_tmp = np.zeros([images, atom_num, atom_num])
     s0 = np.zeros(images)
     s1 = np.zeros(images)
@@ -283,10 +291,47 @@ if not linear:
         flag = 0 #reset converge flag
         nn = 0
         for im in range(images):
+=======
+    dist_tmp = np.zeros([atom_num, atom_num])
+    s0 = np.zeros(images)
+    s1 = np.zeros(images)
+    flag = np.zeros(images)
+
+    for im in range(images):
+        if (flag[im] == 1): #avoid repetition
+            continue
+        step = step_init
+        print("generate image " + str(im+1))
+        loop = 0
+        while(1):
+            for i in range(atom_num): #get the distant matrix for each image
+                for j in range(atom_num):
+                    if (i == j):
+                        dist_tmp[i, j] = 10
+                    else:
+                        tmp = 0
+                        for k in range(3):
+                            tmp += (pos_im[im][i][k]-pos_im[im][j][k])**2
+                        dist_tmp[i,j] = np.sqrt(tmp)
+
+            for i in range(atom_num):
+                for sigma in range(3):
+                    grad = 0
+                    if (frozen == 1 and fix[i][sigma] == "T") or frozen == 0:
+                        for j in range(atom_num): #get the partial differencial of Sidpp
+                            if (j != i): #get the vitual force
+                                grad += 2*(dist_im[im][i][j]-dist_tmp[i][j])*(pos_im[im][i][sigma]-pos_im[im][j][sigma])\
+                                        *(2*dist_im[im][i][j]-dist_tmp[i][j])/dist_tmp[i, j]**5
+                    pos_tmp[i][sigma] = pos_im[im][i][sigma] + step*grad
+            pos_im[im] = pos_tmp
+
+            #judge convergence
+>>>>>>> refs/remotes/origin/master
             s0[im] = s1[im]
             s1[im] = 0
             for i in range(atom_num):
                 for j in range(i):
+<<<<<<< HEAD
                     s1[im] += (dist_im[im,i,j]-dist_tmp[im,i,j])**2/dist_tmp[im,i,j]**4
             if (abs(s0[im]-s1[im]) < conver):
                 print("loop: "+str(loop)+" image "+ str(im+1) +" converge!!!")
@@ -298,6 +343,17 @@ if not linear:
             print("Hey! IDPP path has converged!!!")
             break
         
+=======
+                    s1[im] += (dist_im[im][i][j]-dist_tmp[i][j])**2/dist_tmp[i][j]**4
+            loop += 1
+            print("loop: " + str(loop))
+            if (abs(s0[im]-s1[im]) < conver):
+                print("image "+ str(im+1) +" converge!!!")
+                flag[im] = 1
+                break
+            if (loop > 1 and s1[im] > s0[im]): #decrease step size when cross hollow
+                step = step/3
+>>>>>>> refs/remotes/origin/master
 
 #mkdir and generate poscar file for neb
 if (images + 1 < 10):
