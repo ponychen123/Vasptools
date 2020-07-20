@@ -32,7 +32,7 @@ scale = 3 # scale constant to decrease step size when crossing hollow
 maxiter = 1000 # maxmum cycles
 
 #input filename and number of images
-if sys.argv[1]:
+if len(sys.argv) > 1:
     images = int(sys.argv[1])
     if not readfromexits:
         ininame = sys.argv[2]
