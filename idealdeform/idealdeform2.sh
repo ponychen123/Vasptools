@@ -144,11 +144,11 @@ do
 			;;
 		"XZ")
 			Setstrain=( 0.0 0.0 0.0 0.0 $strain 0.0 )
-			col=7
+			col=8
 			;;
 		"YZ")
 			Setstrain=( 0.0 0.0 0.0 0.0 0.0 $strain )
-			col=8
+			col=7
 			;;
 		*)
 			echo "please rightly set your orientation value!!!"
